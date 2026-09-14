@@ -189,6 +189,16 @@ function geometryKind(collection) {
 }
 
 function styleFor(dataset) {
+  if (dataset.id === "pontos_criticos") {
+    return {
+      color: "#26312b",
+      weight: 1.4,
+      opacity: .95,
+      fillColor: "#f4c430",
+      fillOpacity: .95
+    };
+  }
+
   return {
     color: dataset.color,
     weight: dataset.id === "infovia_05" ? 5 : 2,
@@ -335,9 +345,11 @@ function identifyPopupHtml(latlng, hits) {
 
 function createLayer(dataset) {
   return L.geoJSON(dataset.data, {
+    pane: dataset.id === "pontos_criticos" ? "criticalPane" : "overlayPane",
     style: () => styleFor(dataset),
     pointToLayer: (_feature, latlng) => L.circleMarker(latlng, {
-      radius: dataset.id === "pontos_criticos" ? 6 : 5,
+      pane: dataset.id === "pontos_criticos" ? "criticalPane" : "overlayPane",
+      radius: dataset.id === "pontos_criticos" ? 6.5 : 5,
       ...styleFor(dataset)
     }),
     onEachFeature: (feature, layer) => {
@@ -370,6 +382,7 @@ function addDataset({ id, name, data, source = "Base oficial", removable = false
   };
 
   dataset.layer = createLayer(dataset).addTo(state.map);
+  if (dataset.id === "pontos_criticos") dataset.layer.bringToFront();
   state.datasets.push(dataset);
   renderLayerList();
   return dataset;
@@ -783,6 +796,8 @@ function exportGeojson() {
 
 function setupMap() {
   state.map = L.map("map", { zoomControl: false }).setView([-8.45, -63.9], 10);
+  state.map.createPane("criticalPane");
+  state.map.getPane("criticalPane").style.zIndex = 650;
   state.measureLayer = L.featureGroup().addTo(state.map);
   state.map.on("click", addMeasurePoint);
   state.map.on("click", showIdentifyPopup);
