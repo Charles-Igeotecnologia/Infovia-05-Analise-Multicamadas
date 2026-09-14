@@ -27,6 +27,103 @@ body {
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 
+body.auth-locked .app-shell {
+  filter: blur(1.5px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.login-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    linear-gradient(135deg, rgba(18,63,50,.96), rgba(31,107,85,.9)),
+    #123f32;
+}
+
+body:not(.auth-locked) .login-screen {
+  display: none;
+}
+
+.login-card {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 14px;
+  padding: 28px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(5,22,17,.32);
+}
+
+.login-mark {
+  width: 46px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--brand);
+  color: #a9efd1;
+  font-weight: 800;
+}
+
+.login-card h1 {
+  margin: -6px 0 0;
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.login-copy {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.login-field {
+  display: grid;
+  gap: 7px;
+}
+
+.login-field span {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.login-field input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  outline: none;
+}
+
+.login-field input:focus {
+  border-color: var(--brand-2);
+  box-shadow: 0 0 0 3px rgba(53,165,160,.18);
+}
+
+.login-button {
+  width: 100%;
+  margin-top: 2px;
+}
+
+.login-error {
+  min-height: 17px;
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .app-shell {
   height: 100%;
   display: grid;

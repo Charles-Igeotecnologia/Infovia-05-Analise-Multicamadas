@@ -13,8 +13,12 @@ const state = {
   wmsLayers: [],
   results: [],
   hitFeatures: [],
-  analysisCollapsed: false
+  analysisCollapsed: false,
+  initialized: false
 };
+
+const AUTH_PASSWORD = "123";
+const AUTH_SESSION_KEY = "everestInfovia05Authenticated";
 
 const colors = [
   "#b9443f", "#c47a2c", "#4267ac", "#7651a8", "#278266", "#ad5b86",
@@ -156,6 +160,56 @@ const WMS_CATALOG = [
 ];
 
 const $ = (id) => document.getElementById(id);
+
+function isAuthenticated() {
+  return sessionStorage.getItem(AUTH_SESSION_KEY) === "true";
+}
+
+function unlockApp() {
+  document.body.classList.remove("auth-locked");
+  $("loginScreen")?.setAttribute("aria-hidden", "true");
+}
+
+function normalizePassword(value) {
+  return String(value || "").replace(/\s+/g, "");
+}
+
+function setupLogin() {
+  const form = $("loginForm");
+  const input = $("loginPassword");
+  const error = $("loginError");
+  if (!form || !input) return;
+
+  if (isAuthenticated()) {
+    unlockApp();
+    startApp();
+    return;
+  }
+
+  setTimeout(() => input.focus(), 50);
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (normalizePassword(input.value) !== AUTH_PASSWORD) {
+      if (error) error.textContent = "Senha incorreta. Tente novamente.";
+      input.select();
+      return;
+    }
+    sessionStorage.setItem(AUTH_SESSION_KEY, "true");
+    if (error) error.textContent = "";
+    unlockApp();
+    startApp();
+  });
+}
+
+function startApp() {
+  if (state.initialized) return;
+  state.initialized = true;
+  init().catch((error) => {
+    console.error(error);
+    $("sourceStatus").textContent = "Falha ao carregar os dados. Abra por um servidor local.";
+    $("resultRows").innerHTML = `<tr><td colspan="4">${escapeHtml(error.message)}</td></tr>`;
+  });
+}
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -929,8 +983,4 @@ $("addWms").addEventListener("click", () => {
   }
 });
 
-init().catch((error) => {
-  console.error(error);
-  $("sourceStatus").textContent = "Falha ao carregar os dados. Abra por um servidor local.";
-  $("resultRows").innerHTML = `<tr><td colspan="4">${escapeHtml(error.message)}</td></tr>`;
-});
+setupLogin();

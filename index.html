@@ -10,7 +10,21 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="assets/styles.css">
 </head>
-<body>
+<body class="auth-locked">
+  <section class="login-screen" id="loginScreen" aria-label="Acesso ao ambiente">
+    <form class="login-card" id="loginForm">
+      <div class="login-mark">IE</div>
+      <p class="eyebrow">Projeto Instituto Everest</p>
+      <h1>Infovia 05 - Analise Multicamadas</h1>
+      <p class="login-copy">Acesso restrito ao ambiente tecnico de analise territorial.</p>
+      <label class="login-field">
+        <span>Senha de acesso</span>
+        <input id="loginPassword" type="password" inputmode="numeric" autocomplete="current-password" placeholder="Digite a senha">
+      </label>
+      <button class="button primary login-button" type="submit">Acessar ambiente</button>
+      <p class="login-error" id="loginError" aria-live="polite"></p>
+    </form>
+  </section>
   <div class="app-shell" id="appShell">
     <header class="topbar">
       <button class="icon-button mobile-only" id="togglePanel" aria-label="Abrir painel">☰</button>
