@@ -219,7 +219,17 @@ function createLayer(dataset) {
       radius: dataset.id === "pontos_criticos" ? 6 : 5,
       ...styleFor(dataset)
     }),
-    onEachFeature: (feature, layer) => layer.bindPopup(popupFor(dataset, feature))
+    onEachFeature: (feature, layer) => {
+      layer.bindPopup(popupFor(dataset, feature));
+      layer.on("click", (event) => {
+        L.DomEvent.stopPropagation(event);
+        if (state.measureMode) {
+          addMeasurePoint(event);
+          return;
+        }
+        layer.openPopup(event.latlng);
+      });
+    }
   });
 }
 
@@ -457,13 +467,6 @@ function showCoordinatePopup(event) {
     .setLatLng(event.latlng)
     .setContent(html)
     .openOn(state.map);
-}
-
-function showCoordinatePopupFromDom(event) {
-  if (state.measureMode) return;
-  if (!state.map || !event.target.closest("#map")) return;
-  if (event.target.closest(".leaflet-control, .leaflet-popup, .map-toolbar, .sidebar-toggle")) return;
-  showCoordinatePopup({ latlng: state.map.mouseEventToLatLng(event) });
 }
 
 function toggleSidebar() {
@@ -1053,8 +1056,6 @@ function setupMap() {
   state.measureLayer = L.featureGroup().addTo(state.map);
   state.map.on("click", addMeasurePoint);
   state.map.on("click", showCoordinatePopup);
-  state.map.getContainer().addEventListener("click", showCoordinatePopupFromDom);
-  document.addEventListener("click", showCoordinatePopupFromDom, true);
   state.map.on("dblclick", finishMeasurement);
   L.control.zoom({ position: "topright" }).addTo(state.map);
   L.control.scale({ metric: true, imperial: false, position: "bottomleft" }).addTo(state.map);
