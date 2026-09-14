@@ -341,7 +341,6 @@ function createLayer(dataset) {
       ...styleFor(dataset)
     }),
     onEachFeature: (feature, layer) => {
-      layer.bindPopup(popupFor(dataset, feature));
       layer.on("click", (event) => {
         L.DomEvent.stopPropagation(event);
         if (state.measureMode) {
@@ -575,7 +574,12 @@ function finishMeasurement() {
 function showIdentifyPopup(event) {
   if (state.measureMode) return;
   const html = identifyPopupHtml(event.latlng, visibleFeatureHits(event.latlng));
-  state.clickPopup = L.popup()
+  state.clickPopup = L.popup({
+    className: "identify-leaflet-popup",
+    maxWidth: 420,
+    minWidth: 240,
+    autoPanPadding: [18, 18]
+  })
     .setLatLng(event.latlng)
     .setContent(html)
     .openOn(state.map);
