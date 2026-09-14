@@ -212,6 +212,127 @@ function popupFor(dataset, feature) {
   return `<strong>${escapeHtml(dataset.name)}</strong>${rows ? `<br>${rows}` : ""}${source}${maps}`;
 }
 
+function popupRows(feature, limit = 12) {
+  return Object.entries(feature.properties || {})
+    .filter(([, value]) => value !== null && value !== undefined && value !== "")
+    .slice(0, limit)
+    .map(([key, value]) => `<div><b>${escapeHtml(key)}:</b> ${escapeHtml(value)}</div>`)
+    .join("");
+}
+
+function clickToleranceMeters(latlng) {
+  const point = state.map.latLngToContainerPoint(latlng);
+  const shifted = L.point(point.x + 12, point.y);
+  return state.map.distance(latlng, state.map.containerPointToLatLng(shifted));
+}
+
+function pointFeatureDistanceMeters(point, feature) {
+  const geometry = feature.geometry;
+  if (!geometry) return Infinity;
+  const coordinates = geometry.type === "Point" ? [geometry.coordinates] : geometry.coordinates;
+  return Math.min(...coordinates.map((coord) => turf.distance(point, turf.point(coord), { units: "meters" })));
+}
+
+function featureContainsClick(feature, point, toleranceMeters) {
+  const geometry = feature.geometry;
+  if (!geometry) return false;
+
+  try {
+    if (geometry.type === "Point" || geometry.type === "MultiPoint") {
+      return pointFeatureDistanceMeters(point, feature) <= toleranceMeters;
+    }
+    if (geometry.type === "LineString" || geometry.type === "MultiLineString") {
+      return turf.pointToLineDistance(point, feature, { units: "meters" }) <= toleranceMeters;
+    }
+    if (geometry.type === "Polygon" || geometry.type === "MultiPolygon") {
+      return turf.booleanPointInPolygon(point, feature);
+    }
+    if (geometry.type === "GeometryCollection") {
+      return geometry.geometries.some((item) => featureContainsClick({ ...feature, geometry: item }, point, toleranceMeters));
+    }
+  } catch (_error) {
+    return false;
+  }
+  return false;
+}
+
+function visibleFeatureHits(latlng) {
+  const point = turf.point([latlng.lng, latlng.lat]);
+  const toleranceMeters = clickToleranceMeters(latlng);
+  const hits = [];
+
+  state.datasets
+    .filter((dataset) => dataset.visible && state.map.hasLayer(dataset.layer))
+    .forEach((dataset) => {
+      (dataset.data.features || []).forEach((feature, index) => {
+        if (featureContainsClick(feature, point, toleranceMeters)) {
+          hits.push({ dataset, feature, index });
+        }
+      });
+    });
+
+  return hits;
+}
+
+function identifyPopupHtml(latlng, hits) {
+  const mapsUrl = `https://www.google.com/maps?q=${latlng.lat.toFixed(6)},${latlng.lng.toFixed(6)}`;
+
+  if (!hits.length) {
+    return `
+      <div class="coordinate-popup">
+        <strong>Ponto selecionado</strong>
+        <span>Lat: ${latlng.lat.toFixed(6)}</span>
+        <span>Lng: ${latlng.lng.toFixed(6)}</span>
+        <a href="${mapsUrl}" target="_blank" rel="noopener">Abrir no Google Maps</a>
+      </div>
+    `;
+  }
+
+  const grouped = hits.reduce((map, hit) => {
+    if (!map.has(hit.dataset.id)) map.set(hit.dataset.id, { dataset: hit.dataset, features: [] });
+    map.get(hit.dataset.id).features.push(hit);
+    return map;
+  }, new Map());
+
+  const groups = [...grouped.values()].map(({ dataset, features }) => {
+    const source = dataset.sourceUrl
+      ? `<a href="${escapeHtml(dataset.sourceUrl)}" target="_blank" rel="noopener">${escapeHtml(dataset.source)}</a>`
+      : escapeHtml(dataset.source);
+    const featureBlocks = features.slice(0, 5).map(({ feature, index }, featureOrder) => `
+      <details class="identify-feature" ${featureOrder === 0 ? "open" : ""}>
+        <summary>${escapeHtml(getReference(feature, index))}</summary>
+        <div class="identify-attributes">${popupRows(feature) || "<span>Sem atributos tabulares.</span>"}</div>
+      </details>
+    `).join("");
+    const extra = features.length > 5 ? `<div class="identify-extra">+ ${formatNumber(features.length - 5)} feicoes adicionais nesta camada.</div>` : "";
+    return `
+      <section class="identify-layer">
+        <header>
+          <strong>${escapeHtml(dataset.name)}</strong>
+          <span>${formatNumber(features.length)} ${features.length > 1 ? "feicoes" : "feicao"}</span>
+        </header>
+        ${featureBlocks}
+        ${extra}
+        <div class="identify-source"><b>Fonte:</b> ${source}</div>
+      </section>
+    `;
+  }).join("");
+
+  return `
+    <div class="identify-popup">
+      <div class="identify-head">
+        <strong>Camadas identificadas</strong>
+        <span>${formatNumber(hits.length)} ${hits.length > 1 ? "feicoes" : "feicao"} em ${formatNumber(grouped.size)} camada${grouped.size > 1 ? "s" : ""}</span>
+      </div>
+      ${groups}
+      <div class="identify-coords">
+        Lat: ${latlng.lat.toFixed(6)} | Lng: ${latlng.lng.toFixed(6)}
+        <a href="${mapsUrl}" target="_blank" rel="noopener">Abrir no Google Maps</a>
+      </div>
+    </div>
+  `;
+}
+
 function createLayer(dataset) {
   return L.geoJSON(dataset.data, {
     style: () => styleFor(dataset),
@@ -227,7 +348,7 @@ function createLayer(dataset) {
           addMeasurePoint(event);
           return;
         }
-        layer.openPopup(event.latlng);
+        showIdentifyPopup(event);
       });
     }
   });
@@ -451,18 +572,9 @@ function finishMeasurement() {
   $("measureStatus").textContent = `${message} - medicao finalizada.`;
 }
 
-function showCoordinatePopup(event) {
+function showIdentifyPopup(event) {
   if (state.measureMode) return;
-  const { lat, lng } = event.latlng;
-  const mapsUrl = `https://www.google.com/maps?q=${lat.toFixed(6)},${lng.toFixed(6)}`;
-  const html = `
-    <div class="coordinate-popup">
-      <strong>Ponto selecionado</strong>
-      <span>Lat: ${lat.toFixed(6)}</span>
-      <span>Lng: ${lng.toFixed(6)}</span>
-      <a href="${mapsUrl}" target="_blank" rel="noopener">Abrir no Google Maps</a>
-    </div>
-  `;
+  const html = identifyPopupHtml(event.latlng, visibleFeatureHits(event.latlng));
   state.clickPopup = L.popup()
     .setLatLng(event.latlng)
     .setContent(html)
@@ -1055,7 +1167,7 @@ function setupMap() {
   state.map = L.map("map", { zoomControl: false }).setView([-8.45, -63.9], 10);
   state.measureLayer = L.featureGroup().addTo(state.map);
   state.map.on("click", addMeasurePoint);
-  state.map.on("click", showCoordinatePopup);
+  state.map.on("click", showIdentifyPopup);
   state.map.on("dblclick", finishMeasurement);
   L.control.zoom({ position: "topright" }).addTo(state.map);
   L.control.scale({ metric: true, imperial: false, position: "bottomleft" }).addTo(state.map);
