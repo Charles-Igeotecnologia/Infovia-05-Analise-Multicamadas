@@ -24,11 +24,7 @@
       <div class="topbar-actions">
         <button class="button subtle" id="fitAxis">Enquadrar eixo</button>
         <button class="button primary" id="runAnalysis">Atualizar diagnostico</button>
-        <div class="utility-actions" aria-label="Arquivos para impressao">
-          <span>PDF</span>
-          <button class="utility-link" id="topPrintMap" type="button">Mapa</button>
-          <a class="utility-link" id="topPrintReport" href="outputs/relatorio_diagnostico_infovia05.pdf">Relatorio</a>
-        </div>
+        <a class="utility-link report-link" id="topPrintReport" href="outputs/relatorio_diagnostico_infovia05.pdf">Relatorio PDF</a>
       </div>
     </header>
 
@@ -127,18 +123,11 @@
 
       <section class="map-area">
         <button class="sidebar-toggle" id="toggleSidebar" type="button" aria-label="Recolher painel lateral">‹</button>
-        <div class="print-map-title">
-          <strong>Instituto Everest</strong>
-          <span>Infovia 05 - Analise Multicamadas</span>
-        </div>
         <div id="map" class="map" aria-label="Mapa da Infovia 05"></div>
         <div class="map-toolbar" aria-label="Ferramentas de mapa">
           <button class="tool-button" id="measureDistance" type="button">Medir distancia</button>
           <button class="tool-button" id="measureArea" type="button">Medir area</button>
           <button class="tool-button ghost" id="clearMeasurements" type="button">Limpar</button>
-          <span class="toolbar-divider" aria-hidden="true"></span>
-          <button class="tool-button pdf-tool" id="printMap" type="button">Mapa PDF</button>
-          <a class="tool-button pdf-tool" id="printReport" href="outputs/relatorio_diagnostico_infovia05.pdf">Relatorio PDF</a>
           <span id="measureStatus">Clique em uma ferramenta para medir no mapa.</span>
         </div>
         <section class="analysis-panel" id="analysisPanel" aria-label="Diagnostico espacial">
@@ -176,12 +165,6 @@
       </section>
     </main>
   </div>
-  <div class="print-action-bar" id="printActionBar" aria-label="Acoes de impressao">
-    <span>Modo de impressao pronto</span>
-    <button id="openPrintDialog" type="button">Abrir impressora</button>
-    <button id="closePrintMode" type="button">Fechar modo impressao</button>
-  </div>
-
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7.2.0/turf.min.js"></script>
   <script src="assets/app.js"></script>

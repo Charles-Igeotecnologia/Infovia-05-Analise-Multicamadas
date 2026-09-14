@@ -89,26 +89,6 @@ button { cursor: pointer; }
   justify-content: flex-end;
 }
 
-.utility-actions {
-  min-height: 38px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px;
-  border: 1px solid rgba(255,255,255,.18);
-  border-radius: 8px;
-  background: rgba(255,255,255,.07);
-}
-
-.utility-actions span {
-  padding: 0 7px 0 8px;
-  color: #abd4c5;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-}
-
 .utility-link {
   min-height: 30px;
   display: inline-flex;
@@ -124,6 +104,15 @@ button { cursor: pointer; }
   line-height: 1;
   text-decoration: none;
   cursor: pointer;
+}
+
+.utility-link.report-link {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(255,255,255,.16);
+  color: #d8eee5;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .utility-link:hover {
@@ -543,193 +532,6 @@ button { cursor: pointer; }
   font-weight: 800;
 }
 
-.print-map-title {
-  display: none;
-}
-
-.print-report-sheet {
-  display: none;
-}
-
-.print-action-bar {
-  display: none;
-  position: fixed;
-  top: 14px;
-  right: 14px;
-  z-index: 3000;
-  align-items: center;
-  gap: 8px;
-  padding: 8px;
-  border: 1px solid #9be5c7;
-  border-radius: 8px;
-  background: #123f32;
-  color: #fff;
-  box-shadow: var(--shadow);
-}
-
-.print-action-bar span {
-  padding: 0 6px;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.print-action-bar button {
-  min-height: 34px;
-  padding: 0 12px;
-  border: 1px solid rgba(255,255,255,.35);
-  border-radius: 7px;
-  background: #fff;
-  color: #123f32;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-body.print-map,
-body.print-report {
-  overflow: auto;
-  background: #fff;
-}
-
-body.print-map .print-action-bar,
-body.print-report .print-action-bar {
-  display: inline-flex;
-}
-
-body.print-map .topbar,
-body.print-map .side-panel,
-body.print-map .map-toolbar,
-body.print-map .analysis-panel,
-body.print-map .sidebar-toggle {
-  display: none !important;
-}
-
-body.print-map .app-shell,
-body.print-map .workspace,
-body.print-map .map-area {
-  display: block;
-  height: auto;
-}
-
-body.print-map .print-map-title {
-  display: block;
-  padding: 18px 18px 8px;
-  font-family: Inter, Arial, sans-serif;
-}
-
-body.print-map .print-map-title strong,
-body.print-map .print-map-title span {
-  display: block;
-}
-
-body.print-map .print-map-title strong {
-  font-size: 13px;
-  color: #315f50;
-  text-transform: uppercase;
-}
-
-body.print-map .print-map-title span {
-  font-size: 18px;
-  font-weight: 800;
-  color: #14211d;
-}
-
-body.print-map .map {
-  display: block;
-  width: calc(100vw - 36px);
-  height: calc(100vh - 86px);
-  margin: 0 18px 18px;
-  border: 1px solid #d8e1dd;
-}
-
-body.print-report .app-shell {
-  display: none !important;
-}
-
-body.print-report .print-report-sheet {
-  display: block;
-  max-width: 1040px;
-  margin: 0 auto;
-  padding: 30px 24px 80px;
-  font-family: Arial, sans-serif;
-  color: #14211d;
-  line-height: 1.45;
-}
-
-body.print-report .print-report-sheet h1 {
-  margin: 0 0 4px;
-  font-size: 22px;
-}
-
-body.print-report .print-report-sheet h2 {
-  margin: 24px 0 8px;
-  font-size: 15px;
-}
-
-body.print-report .print-report-sheet .muted {
-  color: #65756f;
-  font-size: 12px;
-}
-
-body.print-report .print-report-sheet .kpis {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-  margin: 18px 0;
-}
-
-body.print-report .print-report-sheet .kpi {
-  padding: 10px;
-  border: 1px solid #d8e1dd;
-  border-radius: 6px;
-}
-
-body.print-report .print-report-sheet .kpi span {
-  display: block;
-  color: #65756f;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-body.print-report .print-report-sheet .kpi strong {
-  display: block;
-  margin-top: 6px;
-  font-size: 18px;
-}
-
-body.print-report .print-report-sheet table {
-  width: 100%;
-  margin-top: 8px;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-
-body.print-report .print-report-sheet th,
-body.print-report .print-report-sheet td {
-  padding: 7px;
-  border: 1px solid #d8e1dd;
-  text-align: left;
-  vertical-align: top;
-}
-
-body.print-report .print-report-sheet th {
-  background: #f2f6f4;
-  color: #315f50;
-}
-
-body.print-report .print-report-sheet a {
-  color: #1f6b55;
-  text-decoration: none;
-}
-
-body.print-report .print-report-sheet .note {
-  margin-top: 18px;
-  padding: 10px;
-  border-left: 4px solid #1f6b55;
-  background: #f2f6f4;
-  font-size: 12px;
-}
-
 .map-toolbar {
   position: absolute;
   top: 12px;
@@ -769,18 +571,6 @@ body.print-report .print-report-sheet .note {
 
 .tool-button.ghost {
   color: var(--muted);
-}
-
-.tool-button.pdf-tool {
-  background: #f7faf8;
-  color: var(--brand-2);
-}
-
-.toolbar-divider {
-  width: 1px;
-  height: 24px;
-  margin: 0 2px;
-  background: var(--line);
 }
 
 #measureStatus {
@@ -1067,9 +857,6 @@ tr:last-child td { border-bottom: 0; }
     margin-left: 0;
     justify-content: flex-start;
   }
-  .utility-actions {
-    min-height: 34px;
-  }
   .utility-link {
     min-height: 28px;
     padding: 0 8px;
@@ -1105,153 +892,4 @@ tr:last-child td { border-bottom: 0; }
   }
   .risk-strip { grid-template-columns: 1fr 1fr; }
   .brand h1 { font-size: 14px; }
-}
-
-@media print {
-  body.print-map {
-    overflow: hidden;
-    background: #fff;
-  }
-
-  body.print-map .topbar,
-  body.print-map .side-panel,
-  body.print-map .map-toolbar,
-  body.print-map .analysis-panel,
-  body.print-map .sidebar-toggle,
-  body.print-map .print-action-bar,
-  body.print-report .print-action-bar {
-    display: none !important;
-  }
-
-  body.print-map .app-shell,
-  body.print-map .workspace,
-  body.print-map .map-area {
-    display: block;
-    height: auto;
-  }
-
-  body.print-map .map-area {
-    position: static;
-  }
-
-  body.print-map .print-map-title {
-    display: block;
-    padding: 0 0 8px;
-    font-family: Inter, Arial, sans-serif;
-  }
-
-  body.print-map .print-map-title strong,
-  body.print-map .print-map-title span {
-    display: block;
-  }
-
-  body.print-map .print-map-title strong {
-    font-size: 13px;
-    color: #315f50;
-    text-transform: uppercase;
-  }
-
-  body.print-map .print-map-title span {
-    font-size: 18px;
-    font-weight: 800;
-    color: #14211d;
-  }
-
-  body.print-map .map {
-    display: block;
-    width: 100%;
-    height: 185mm;
-    border: 1px solid #d8e1dd;
-  }
-
-  body.print-report {
-    background: #fff;
-  }
-
-  body.print-report .app-shell {
-    display: none !important;
-  }
-
-  body.print-report .print-report-sheet {
-    display: block;
-    margin: 0;
-    font-family: Arial, sans-serif;
-    color: #14211d;
-    line-height: 1.45;
-  }
-
-  body.print-report .print-report-sheet h1 {
-    margin: 0 0 4px;
-    font-size: 22px;
-  }
-
-  body.print-report .print-report-sheet h2 {
-    margin: 24px 0 8px;
-    font-size: 15px;
-  }
-
-  body.print-report .print-report-sheet .muted {
-    color: #65756f;
-    font-size: 12px;
-  }
-
-  body.print-report .print-report-sheet .kpis {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-    margin: 18px 0;
-  }
-
-  body.print-report .print-report-sheet .kpi {
-    padding: 10px;
-    border: 1px solid #d8e1dd;
-    border-radius: 6px;
-  }
-
-  body.print-report .print-report-sheet .kpi span {
-    display: block;
-    color: #65756f;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-  }
-
-  body.print-report .print-report-sheet .kpi strong {
-    display: block;
-    margin-top: 6px;
-    font-size: 18px;
-  }
-
-  body.print-report .print-report-sheet table {
-    width: 100%;
-    margin-top: 8px;
-    border-collapse: collapse;
-    font-size: 12px;
-  }
-
-  body.print-report .print-report-sheet th,
-  body.print-report .print-report-sheet td {
-    padding: 7px;
-    border: 1px solid #d8e1dd;
-    text-align: left;
-    vertical-align: top;
-  }
-
-  body.print-report .print-report-sheet th {
-    background: #f2f6f4;
-    color: #315f50;
-  }
-
-  body.print-report .print-report-sheet a {
-    color: #1f6b55;
-    text-decoration: none;
-  }
-
-  body.print-report .print-report-sheet .note {
-    margin-top: 18px;
-    padding: 10px;
-    border-left: 4px solid #1f6b55;
-    background: #f2f6f4;
-    font-size: 12px;
-  }
 }
