@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Instituto Everest | Infovia 05 - Analise Multicamadas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <div class="app-shell" id="appShell">
+    <header class="topbar">
+      <button class="icon-button mobile-only" id="togglePanel" aria-label="Abrir painel">☰</button>
+      <div class="brand">
+        <div class="brand-mark">IE</div>
+        <div>
+          <p class="eyebrow">Projeto Instituto Everest</p>
+          <h1>Infovia 05 - Analise Multicamadas</h1>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button class="button subtle" id="fitAxis">Enquadrar eixo</button>
+        <button class="button primary" id="runAnalysis">Atualizar diagnostico</button>
+        <div class="utility-actions" aria-label="Arquivos para impressao">
+          <span>PDF</span>
+          <a class="utility-link" id="topPrintMap" href="outputs/mapa_visual_infovia05.pdf">Mapa</a>
+          <a class="utility-link" id="topPrintReport" href="outputs/relatorio_diagnostico_infovia05.pdf">Relatorio</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="side-panel" id="sidePanel" aria-label="Painel de controles">
+        <section class="panel-section collapsible-section" id="projectSummarySection">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">Projeto</p>
+              <h2>Resumo tecnico</h2>
+            </div>
+            <button class="text-button" id="toggleProjectSummary" type="button">Recolher</button>
+          </div>
+          <div class="collapsible-body" id="projectSummaryBody">
+            <div class="status-card">
+              <span class="status-dot"></span>
+              <div>
+                <strong>Base oficial carregada</strong>
+                <span id="sourceStatus">Aguardando leitura dos dados...</span>
+              </div>
+            </div>
+            <div class="metric-grid">
+              <div class="metric"><span>Extensao</span><strong id="axisLength">-</strong></div>
+              <div class="metric"><span>Vertices</span><strong id="axisVertices">-</strong></div>
+              <div class="metric"><span>Camadas</span><strong id="layerCount">-</strong></div>
+              <div class="metric"><span>Interferencias</span><strong id="hitCount">-</strong></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">Criterio</p>
+              <h2>Faixa de analise</h2>
+            </div>
+            <button class="text-button" id="clearUploads">Limpar extras</button>
+          </div>
+          <label class="field">
+            <span>Buffer do eixo</span>
+            <select id="bufferSelect">
+              <option value="0">Intersecao direta</option>
+              <option value="0.03">Buffer de 30 m</option>
+              <option value="0.05">Buffer de 50 m</option>
+              <option value="0.1">100 m</option>
+              <option value="0.5">500 m</option>
+              <option value="1">1 km</option>
+              <option value="5">5 km</option>
+            </select>
+          </label>
+          <label class="upload-zone">
+            <input id="fileInput" type="file" multiple accept=".kml,.geojson,.json">
+            <strong>Adicionar KML ou GeoJSON</strong>
+            <span>Use para testar novas areas, restricoes ou levantamentos de campo.</span>
+          </label>
+        </section>
+
+        <section class="panel-section panel-tabs">
+          <div class="tab-bar" role="tablist" aria-label="Camadas e geosservicos">
+            <button class="tab-button active" data-panel-tab="layers" type="button">Camadas</button>
+            <button class="tab-button" data-panel-tab="wms" type="button">WMS</button>
+          </div>
+
+          <div class="tab-panel active" id="layersTab" role="tabpanel">
+            <p class="eyebrow">Camadas</p>
+            <h2>Controle operacional</h2>
+            <div id="layerList" class="layer-list"></div>
+          </div>
+
+          <div class="tab-panel" id="wmsTab" role="tabpanel">
+            <p class="eyebrow">Geosservicos</p>
+            <h2>WMS disponiveis</h2>
+            <div class="service-note">
+              <strong>Validados nesta sessao:</strong>
+              <span>FUNAI respondeu como WMS 1.3.0. INDE respondeu como catalogo WMS; IBAMA/PAMGIA e ANM nao ficaram adicionaveis sem token ou endpoint estavel nos testes.</span>
+            </div>
+            <div id="wmsCatalog" class="wms-catalog"></div>
+            <div id="activeWmsList" class="active-wms"></div>
+
+            <details class="manual-wms">
+              <summary>Adicionar WMS manualmente</summary>
+              <label class="field">
+                <span>URL WMS</span>
+                <input id="wmsUrl" placeholder="https://servidor/geoserver/wms">
+              </label>
+              <label class="field">
+                <span>Camada</span>
+                <input id="wmsLayer" placeholder="workspace:camada">
+              </label>
+              <button class="button full" id="addWms">Adicionar WMS visual</button>
+              <p class="hint">WMS entra apenas como referencia visual. Para calcular interferencias, use geometria vetorial.</p>
+            </details>
+          </div>
+        </section>
+      </aside>
+
+      <section class="map-area">
+        <button class="sidebar-toggle" id="toggleSidebar" type="button" aria-label="Recolher painel lateral">‹</button>
+        <div class="print-map-title">
+          <strong>Instituto Everest</strong>
+          <span>Infovia 05 - Analise Multicamadas</span>
+        </div>
+        <div id="map" class="map" aria-label="Mapa da Infovia 05"></div>
+        <div class="map-toolbar" aria-label="Ferramentas de mapa">
+          <button class="tool-button" id="measureDistance" type="button">Medir distancia</button>
+          <button class="tool-button" id="measureArea" type="button">Medir area</button>
+          <button class="tool-button ghost" id="clearMeasurements" type="button">Limpar</button>
+          <span class="toolbar-divider" aria-hidden="true"></span>
+          <a class="tool-button pdf-tool" id="printMap" href="outputs/mapa_visual_infovia05.pdf">Mapa PDF</a>
+          <a class="tool-button pdf-tool" id="printReport" href="outputs/relatorio_diagnostico_infovia05.pdf">Relatorio PDF</a>
+          <span id="measureStatus">Clique em uma ferramenta para medir no mapa.</span>
+        </div>
+        <section class="analysis-panel" id="analysisPanel" aria-label="Diagnostico espacial">
+          <div class="analysis-header">
+            <div>
+              <p class="eyebrow">Diagnostico</p>
+              <h2>Interferencias territoriais</h2>
+            </div>
+            <div class="export-actions">
+              <button class="button compact" id="exportCsv">CSV</button>
+              <button class="button compact" id="exportGeojson">GeoJSON</button>
+              <button class="button compact icon-only" id="toggleAnalysis" aria-label="Minimizar diagnostico">_</button>
+            </div>
+          </div>
+          <div class="analysis-body" id="analysisBody">
+            <div class="risk-strip" id="riskStrip"></div>
+            <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Camada</th>
+                  <th>Feicoes</th>
+                  <th>Interferencias</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="resultRows">
+                <tr><td colspan="4">Carregando diagnostico...</td></tr>
+              </tbody>
+            </table>
+            </div>
+            <p class="disclaimer">Triagem cartografica. A conclusao juridica ou fundiaria exige base atualizada, metadados, documento dominial e consulta ao orgao competente.</p>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+  <div class="print-action-bar" id="printActionBar" aria-label="Acoes de impressao">
+    <span>Modo de impressao pronto</span>
+    <button id="openPrintDialog" type="button">Abrir impressora</button>
+    <button id="closePrintMode" type="button">Fechar modo impressao</button>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7.2.0/turf.min.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

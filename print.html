@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Impressao | Instituto Everest - Infovia 05</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      color: #14211d;
+      background: #fff;
+    }
+
+    .print-actions {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 3000;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 8px;
+      border: 1px solid #d8e1dd;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 12px 28px rgba(18,63,50,.18);
+    }
+
+    .print-actions button {
+      min-height: 36px;
+      padding: 0 12px;
+      border: 1px solid #123f32;
+      border-radius: 7px;
+      background: #123f32;
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .sheet {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-height: 100%;
+      padding: 14px;
+      gap: 10px;
+      box-sizing: border-box;
+    }
+
+    header strong {
+      display: block;
+      color: #315f50;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    header h1 {
+      margin: 2px 0 0;
+      font-size: 20px;
+    }
+
+    #printMapCanvas {
+      min-height: 720px;
+      border: 1px solid #d8e1dd;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      font-size: 11px;
+    }
+
+    .legend-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-row span {
+      width: 14px;
+      height: 8px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+
+    .note {
+      margin-top: 4px;
+      font-size: 11px;
+      color: #65756f;
+    }
+
+    .error {
+      max-width: 720px;
+      margin: 80px auto;
+      padding: 18px;
+      border: 1px solid #d8e1dd;
+      border-radius: 8px;
+      background: #f7faf8;
+    }
+
+    @media print {
+      @page { size: landscape; margin: 10mm; }
+      .print-actions { display: none; }
+      .sheet { height: 100vh; padding: 0; }
+      #printMapCanvas { min-height: 0; height: calc(100vh - 92px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-actions">
+    <button type="button" onclick="window.print()">Imprimir agora</button>
+    <button type="button" onclick="history.back()">Voltar ao painel</button>
+  </div>
+  <main class="sheet" id="mapSheet">
+    <header>
+      <strong>Instituto Everest</strong>
+      <h1>Infovia 05 - Analise Multicamadas</h1>
+    </header>
+    <div id="printMapCanvas"></div>
+    <footer>
+      <div class="legend" id="legend"></div>
+      <div class="note">Mapa visual para apoio a analise territorial. Fontes conforme camadas carregadas no painel principal.</div>
+    </footer>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const colors = [
+      "#b9443f", "#c47a2c", "#4267ac", "#7651a8", "#278266", "#ad5b86",
+      "#187c9b", "#7e6734", "#d06036", "#4a783d", "#5e4a8f", "#253341"
+    ];
+
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get("mode") || "map";
+
+    function showError(message) {
+      document.body.innerHTML = `
+        <div class="print-actions">
+          <button type="button" onclick="history.back()">Voltar ao painel</button>
+        </div>
+        <section class="error">
+          <h1>Impressao indisponivel</h1>
+          <p>${message}</p>
+        </section>
+      `;
+    }
+
+    function geometryKind(collection) {
+      const types = new Set((collection.features || []).map((feature) => feature.geometry?.type).filter(Boolean));
+      if (!types.size) return "sem geometria";
+      if ([...types].every((type) => type.includes("Polygon"))) return "poligonal";
+      if ([...types].every((type) => type.includes("Line"))) return "linear";
+      if ([...types].every((type) => type.includes("Point"))) return "pontual";
+      return "mista";
+    }
+
+    function renderReport() {
+      const html = sessionStorage.getItem("everestReportPrintHtml");
+      if (!html) {
+        showError("Nao encontrei o relatorio preparado. Volte ao painel e clique novamente em Relatorio.");
+        return;
+      }
+      const parsed = new DOMParser().parseFromString(html, "text/html");
+      document.title = parsed.title || "Relatorio - Infovia 05";
+      document.head.innerHTML = parsed.head.innerHTML;
+      document.body.innerHTML = parsed.body.innerHTML;
+    }
+
+    async function renderMap() {
+      const packageData = await fetch("data/official-package.json").then((response) => response.json());
+      const visible = new Set((params.get("layers") || Object.keys(packageData.layers).join(",")).split(",").filter(Boolean));
+      const lat = Number(params.get("lat")) || -8.45;
+      const lng = Number(params.get("lng")) || -63.9;
+      const zoom = Number(params.get("zoom")) || 10;
+      const map = L.map("printMapCanvas", { zoomControl: true }).setView([lat, lng], zoom);
+      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 19,
+        attribution: "Esri, HERE, Garmin, FAO, NOAA, USGS"
+      }).addTo(map);
+
+      const group = L.featureGroup().addTo(map);
+      const legend = document.getElementById("legend");
+      packageData.summary.forEach((summary, index) => {
+        const id = summary.camada;
+        if (!visible.has(id) || !packageData.layers[id]) return;
+        const color = colors[index % colors.length];
+        const kind = geometryKind(packageData.layers[id]);
+        L.geoJSON(packageData.layers[id], {
+          style: () => ({
+            color,
+            weight: id === "infovia_05" ? 5 : 2,
+            opacity: id === "infovia_05" ? .95 : .85,
+            fillColor: color,
+            fillOpacity: kind === "poligonal" ? .16 : .08
+          }),
+          pointToLayer: (_feature, latlng) => L.circleMarker(latlng, {
+            radius: id === "pontos_criticos" ? 6 : 5,
+            color,
+            weight: 2,
+            fillColor: color,
+            fillOpacity: .65
+          })
+        }).addTo(group);
+        legend.insertAdjacentHTML("beforeend", `<div class="legend-row"><span style="background:${color}"></span>${summary.rotulo}</div>`);
+      });
+
+      setTimeout(() => {
+        map.invalidateSize();
+        if (group.getLayers().length) map.fitBounds(group.getBounds(), { padding: [24, 24] });
+      }, 350);
+    }
+
+    if (mode === "report") {
+      renderReport();
+    } else {
+      renderMap().catch((error) => showError(error.message));
+    }
+  </script>
+</body>
+</html>
