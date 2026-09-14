@@ -19,6 +19,24 @@ const state = {
 
 const AUTH_PASSWORD = "123";
 const AUTH_SESSION_KEY = "everestInfovia05Authenticated";
+const geometryValidation = new WeakMap();
+const geometryBounds = new WeakMap();
+let reportUrl = null;
+
+function overlapsBounds(feature, bounds) {
+  if (!geometryBounds.has(feature)) geometryBounds.set(feature, turf.bbox(feature));
+  const box = geometryBounds.get(feature);
+  return box[0] <= bounds[2] && box[2] >= bounds[0] && box[1] <= bounds[3] && box[3] >= bounds[1];
+}
+
+function validGeometry(feature) {
+  if (!geometryValidation.has(feature)) {
+    let valid = false;
+    try { valid = Boolean(feature.geometry) && turf.booleanValid(feature); } catch (_error) { /* Reported in analysis. */ }
+    geometryValidation.set(feature, valid);
+  }
+  return geometryValidation.get(feature);
+}
 
 const colors = [
   "#b9443f", "#c47a2c", "#4267ac", "#7651a8", "#278266", "#ad5b86",
@@ -276,7 +294,7 @@ function popupFor(dataset, feature) {
   return `<strong>${escapeHtml(dataset.name)}</strong>${rows ? `<br>${rows}` : ""}${source}${maps}`;
 }
 
-function popupRows(feature, limit = 12) {
+function popupRows(feature, limit = Infinity) {
   return Object.entries(feature.properties || {})
     .filter(([, value]) => value !== null && value !== undefined && value !== "")
     .slice(0, limit)
@@ -305,7 +323,10 @@ function featureContainsClick(feature, point, toleranceMeters) {
     if (geometry.type === "Point" || geometry.type === "MultiPoint") {
       return pointFeatureDistanceMeters(point, feature) <= toleranceMeters;
     }
-    if (geometry.type === "LineString" || geometry.type === "MultiLineString") {
+    if (geometry.type === "MultiLineString") {
+      return geometry.coordinates.some((line) => turf.pointToLineDistance(point, turf.lineString(line), { units: "meters" }) <= toleranceMeters);
+    }
+    if (geometry.type === "LineString") {
       return turf.pointToLineDistance(point, feature, { units: "meters" }) <= toleranceMeters;
     }
     if (geometry.type === "Polygon" || geometry.type === "MultiPolygon") {
@@ -362,13 +383,13 @@ function identifyPopupHtml(latlng, hits) {
     const source = dataset.sourceUrl
       ? `<a href="${escapeHtml(dataset.sourceUrl)}" target="_blank" rel="noopener">${escapeHtml(dataset.source)}</a>`
       : escapeHtml(dataset.source);
-    const featureBlocks = features.slice(0, 5).map(({ feature, index }, featureOrder) => `
+    const featureBlocks = features.map(({ feature, index }, featureOrder) => `
       <details class="identify-feature" ${featureOrder === 0 ? "open" : ""}>
         <summary>${escapeHtml(getReference(feature, index))}</summary>
         <div class="identify-attributes">${popupRows(feature) || "<span>Sem atributos tabulares.</span>"}</div>
       </details>
     `).join("");
-    const extra = features.length > 5 ? `<div class="identify-extra">+ ${formatNumber(features.length - 5)} feicoes adicionais nesta camada.</div>` : "";
+    const extra = "";
     return `
       <section class="identify-layer">
         <header>
@@ -430,7 +451,7 @@ function addDataset({ id, name, data, source = "Base oficial", removable = false
     sourceNote: sourceMeta.note || "",
     removable,
     visible: true,
-    color: colors[state.datasets.length % colors.length],
+    color: id === "pontos_criticos" ? "#f4c430" : colors[state.datasets.length % colors.length],
     kind: geometryKind(data),
     layer: null
   };
@@ -537,6 +558,9 @@ function addWmsService(service) {
     attribution: service.agency
   }).addTo(state.map);
   state.wmsLayers.push({ ...service, layer });
+  layer.on("tileerror", () => {
+    $("wmsStatus").textContent = `Falha no carregamento de ${service.title}. Verifique o servidor e o nome da camada.`;
+  });
   renderWmsCatalog();
 }
 
@@ -571,6 +595,8 @@ function toggleProjectSummary() {
 
 function setMeasureMode(mode) {
   state.measureMode = state.measureMode === mode ? null : mode;
+  if (state.measureMode) state.map.doubleClickZoom.disable();
+  else state.map.doubleClickZoom.enable();
   state.measurePoints = [];
   if (state.measureDraft) {
     state.measureLayer.removeLayer(state.measureDraft);
@@ -584,6 +610,7 @@ function setMeasureMode(mode) {
 }
 
 function clearMeasurements() {
+  state.map.doubleClickZoom.enable();
   state.measureLayer.clearLayers();
   state.measurePoints = [];
   state.measureDraft = null;
@@ -634,6 +661,7 @@ function finishMeasurement() {
   state.measurePoints = [];
   state.measureDraft = null;
   state.measureMode = null;
+  state.map.doubleClickZoom.enable();
   document.querySelectorAll(".tool-button").forEach((button) => button.classList.remove("active"));
   $("measureStatus").textContent = `${message} - medicao finalizada.`;
 }
@@ -738,6 +766,7 @@ function runAnalysis() {
   if (state.corridorLayer) state.map.removeLayer(state.corridorLayer);
 
   const corridor = makeCorridor();
+  const corridorBounds = turf.bbox(corridor);
   const usingBuffer = Number($("bufferSelect").value) > 0;
   if (usingBuffer) {
     state.corridorLayer = L.geoJSON(corridor, {
@@ -749,25 +778,29 @@ function runAnalysis() {
   state.hitFeatures = [];
 
   state.datasets
-    .filter((dataset) => dataset.id !== "infovia_05")
+    .filter((dataset) => dataset.id !== "infovia_05" && dataset.id !== "pontos_criticos")
     .forEach((dataset) => {
       let hits = 0;
+      let errors = 0;
       (dataset.data.features || []).forEach((feature, index) => {
-        if (!feature.geometry) return;
         try {
+          if (!validGeometry(feature)) throw new Error("Geometria invalida");
+          if (!overlapsBounds(feature, corridorBounds)) return;
           if (turf.booleanIntersects(corridor, feature)) {
             hits += 1;
-            const point = estimatePoint(dataset, feature);
-            state.hitFeatures.push(turf.point(point?.geometry?.coordinates || turf.center(feature).geometry.coordinates, {
+            state.hitFeatures.push({ type: "Feature", geometry: feature.geometry, properties: {
+              ...feature.properties,
               camada: dataset.name,
               referencia: getReference(feature, index),
               tipo_geometria: feature.geometry.type,
               fonte: dataset.source,
-              criterio: usingBuffer ? `Buffer de ${$("bufferSelect").selectedOptions[0].textContent}` : "Intersecao direta"
-            }));
+              fonte_url: dataset.sourceUrl,
+              geometria_exportada: "Feicao original afetada, sem recorte",
+              criterio: $("bufferSelect").selectedOptions[0].textContent
+            }});
           }
         } catch (_error) {
-          // Geometrias invalidas ficam fora da contagem operacional.
+          errors += 1;
         }
       });
 
@@ -776,12 +809,14 @@ function runAnalysis() {
         name: dataset.name,
         features: featureCount(dataset.data),
         hits,
+        errors,
         kind: dataset.kind
       });
     });
 
   renderResults();
   updateMetrics();
+  $("topPrintReport").disabled = false;
 }
 
 function renderResults() {
@@ -790,8 +825,8 @@ function renderResults() {
 
   state.results.forEach((result) => {
     const tr = document.createElement("tr");
-    const statusClass = result.hits ? "status-hit" : result.kind === "poligonal" ? "status-ok" : "status-note";
-    const statusText = result.hits ? "Requer verificacao" : result.kind === "poligonal" ? "Sem sobreposicao" : "Indicativo";
+    const statusClass = result.errors || !result.features ? "status-note" : result.hits ? "status-hit" : "status-ok";
+    const statusText = result.errors ? `${result.errors} nao analisadas` : !result.features ? "Sem dados no pacote" : result.hits ? "Requer verificacao" : "Sem intersecao";
     tr.innerHTML = `
       <td>${escapeHtml(result.name)}</td>
       <td>${formatNumber(result.features)}</td>
@@ -803,7 +838,7 @@ function renderResults() {
 
   const totalHits = state.results.reduce((sum, item) => sum + item.hits, 0);
   const impactedLayers = state.results.filter((item) => item.hits > 0).length;
-  const officialFeatures = state.results.reduce((sum, item) => sum + item.features, 0);
+  const officialFeatures = state.results.reduce((sum, item) => sum + item.features - item.errors, 0);
   const uploadedLayers = state.datasets.filter((item) => item.removable).length;
 
   $("riskStrip").innerHTML = `
@@ -812,6 +847,8 @@ function renderResults() {
     <div class="risk-card"><span>Feicoes analisadas</span><strong>${formatNumber(officialFeatures)}</strong></div>
     <div class="risk-card"><span>Extras carregadas</span><strong>${formatNumber(uploadedLayers)}</strong></div>
   `;
+  const errors = state.results.reduce((sum, item) => sum + item.errors, 0);
+  $("analysisNotice").textContent = `Todas as camadas vetoriais de entrada, inclusive ocultas. Pontos criticos: referencia derivada. ${errors ? `${errors} feicoes nao analisadas por falha geometrica; resultado parcial.` : ""}`;
 }
 
 function updateMetrics() {
@@ -836,9 +873,9 @@ function download(filename, content, type) {
 }
 
 function exportCsv() {
-  const header = "camada;feicoes_analisadas;interferencias;tipo_geometria\n";
+  const header = "camada;feicoes_recebidas;interferencias;tipo_geometria;nao_analisadas\n";
   const body = state.results
-    .map((item) => [item.name, item.features, item.hits, item.kind].map((value) => `"${String(value).replaceAll('"', '""')}"`).join(";"))
+    .map((item) => [item.name, item.features, item.hits, item.kind, item.errors].map((value) => `"${String(value).replaceAll('"', '""')}"`).join(";"))
     .join("\n");
   download("diagnostico_infovia_05.csv", header + body, "text/csv;charset=utf-8");
 }
@@ -984,3 +1021,31 @@ $("addWms").addEventListener("click", () => {
 });
 
 setupLogin();
+
+$("topPrintReport").addEventListener("click", () => {
+  if (!state.package) return;
+  try {
+    runAnalysis();
+    const report = createDiagnosticReport({
+      results: state.results,
+      criterion: $("bufferSelect").selectedOptions[0].textContent,
+      lengthKm: turf.length(axisFeature(), { units: "kilometers" }),
+      sources: state.datasets.filter((d) => d.id !== "pontos_criticos").map((d) => ({ name: d.name, source: d.source, url: d.sourceUrl })),
+      generatedAt: new Date().toLocaleString("pt-BR")
+    });
+    if (reportUrl) URL.revokeObjectURL(reportUrl);
+    reportUrl = URL.createObjectURL(report.output("blob"));
+    $("reportPreview").innerHTML = `<h2>Instituto Everest - Infovia 05</h2>
+      <p>${escapeHtml($("bufferSelect").selectedOptions[0].textContent)} | ${escapeHtml($("axisLength").textContent)}</p>
+      <p>${escapeHtml($("analysisNotice").textContent)}</p>
+      <table><thead><tr><th>Camada</th><th>Afetadas</th><th>Nao analisadas</th></tr></thead><tbody>
+      ${state.results.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${row.hits}</td><td>${row.errors}</td></tr>`).join("")}
+      </tbody></table>`;
+    $("downloadReport").href = reportUrl;
+    $("reportDialog").showModal();
+  } catch (error) {
+    alert(`Nao foi possivel gerar o relatorio: ${error.message}`);
+  }
+});
+
+$("closeReport").addEventListener("click", () => $("reportDialog").close());
