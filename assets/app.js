@@ -512,6 +512,176 @@ function openPrintDialog() {
   window.print();
 }
 
+function projectToPdf(coord, bounds, rect) {
+  const [lng, lat] = coord;
+  const west = bounds.getWest();
+  const east = bounds.getEast();
+  const south = bounds.getSouth();
+  const north = bounds.getNorth();
+  const x = rect.x + ((lng - west) / (east - west)) * rect.w;
+  const y = rect.y + ((north - lat) / (north - south)) * rect.h;
+  return [x, y];
+}
+
+function pdfRgb(color) {
+  const normalized = String(color || "#253341").replace("#", "");
+  return [
+    parseInt(normalized.slice(0, 2), 16),
+    parseInt(normalized.slice(2, 4), 16),
+    parseInt(normalized.slice(4, 6), 16)
+  ];
+}
+
+function pdfColor(color, mode = "RG") {
+  return `${pdfRgb(color).map((part) => (part / 255).toFixed(3)).join(" ")} ${mode}`;
+}
+
+function pdfText(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\x20-\x7E]/g, "-")
+    .replace(/\\/g, "\\\\")
+    .replace(/\(/g, "\\(")
+    .replace(/\)/g, "\\)");
+}
+
+function buildPdf(content, page) {
+  const stream = content.join("\n");
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${page.w} ${page.h}] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return new Blob([pdf], { type: "application/pdf" });
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function generateCurrentMapPdf() {
+  const page = { w: 842, h: 595 };
+  const content = [];
+  const py = (y) => page.h - y;
+  const bounds = state.map.getBounds();
+  const viewport = turf.bboxPolygon([bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]);
+  const rect = { x: 34, y: 76, w: page.w - 260, h: page.h - 128 };
+  const generatedAt = new Date().toLocaleString("pt-BR");
+
+  const addText = (text, x, y, size = 10, color = "#14211d") => {
+    content.push(`${pdfColor(color, "rg")} BT /F1 ${size} Tf ${x.toFixed(2)} ${py(y).toFixed(2)} Td (${pdfText(text)}) Tj ET`);
+  };
+  const addRect = (x, y, w, h, fill, stroke = null) => {
+    if (fill) content.push(pdfColor(fill, "rg"));
+    if (stroke) content.push(pdfColor(stroke, "RG"));
+    content.push(`${x.toFixed(2)} ${py(y + h).toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re ${fill && stroke ? "B" : fill ? "f" : "S"}`);
+  };
+  const addLine = (points, color, width = 1) => {
+    if (points.length < 2) return;
+    content.push(`${pdfColor(color, "RG")} ${width.toFixed(2)} w`);
+    content.push(`${points[0][0].toFixed(2)} ${py(points[0][1]).toFixed(2)} m`);
+    points.slice(1).forEach((point) => content.push(`${point[0].toFixed(2)} ${py(point[1]).toFixed(2)} l`));
+    content.push("S");
+  };
+  const addPoint = (point, color, radius = 2.2) => {
+    if (point[0] < rect.x - 8 || point[0] > rect.x + rect.w + 8 || point[1] < rect.y - 8 || point[1] > rect.y + rect.h + 8) return;
+    addRect(point[0] - radius, point[1] - radius, radius * 2, radius * 2, color);
+  };
+  const project = (coord) => projectToPdf(coord, bounds, rect);
+  const drawLineCoords = (coords, color, width) => addLine(
+    coords.filter((coord) => Array.isArray(coord) && coord.length >= 2).map(project),
+    color,
+    width
+  );
+  const drawFeature = (feature, dataset) => {
+    const geometry = feature.geometry;
+    if (!geometry) return;
+    const color = dataset.color;
+    const width = dataset.id === "infovia_05" ? 2.8 : .8;
+    if (geometry.type === "Point") {
+      addPoint(project(geometry.coordinates), color, dataset.id === "pontos_criticos" ? 2.8 : 2.1);
+    } else if (geometry.type === "MultiPoint") {
+      geometry.coordinates.forEach((coord) => addPoint(project(coord), color));
+    } else if (geometry.type === "LineString") {
+      drawLineCoords(geometry.coordinates, color, width);
+    } else if (geometry.type === "MultiLineString") {
+      geometry.coordinates.forEach((line) => drawLineCoords(line, color, width));
+    } else if (geometry.type === "Polygon") {
+      if (geometry.coordinates?.[0]) drawLineCoords([...geometry.coordinates[0], geometry.coordinates[0][0]], color, width);
+    } else if (geometry.type === "MultiPolygon") {
+      geometry.coordinates.forEach((polygon) => {
+        if (polygon?.[0]) drawLineCoords([...polygon[0], polygon[0][0]], color, width);
+      });
+    }
+  };
+
+  addRect(0, 0, page.w, 48, "#123f32");
+  addText("PROJETO INSTITUTO EVEREST", 34, 19, 8, "#abd4c5");
+  addText("Infovia 05 - Analise Multicamadas", 34, 38, 16, "#ffffff");
+  addText(`Area atual do mapa | Zoom ${state.map.getZoom()} | ${generatedAt}`, 34, 63, 8, "#65756f");
+  addRect(rect.x, rect.y, rect.w, rect.h, "#f7faf8", "#d8e1dd");
+
+  const activeDatasets = state.datasets
+    .filter((dataset) => dataset.visible && state.map.hasLayer(dataset.layer))
+    .map((dataset) => ({
+      ...dataset,
+      visibleFeatures: (dataset.data.features || []).filter((feature) => {
+        try {
+          return feature.geometry && turf.booleanIntersects(viewport, feature);
+        } catch (_error) {
+          return false;
+        }
+      })
+    }))
+    .filter((dataset) => dataset.visibleFeatures.length);
+
+  activeDatasets.forEach((dataset) => {
+    dataset.visibleFeatures.forEach((feature) => drawFeature(feature, dataset));
+  });
+
+  addRect(rect.x, rect.y, rect.w, rect.h, null, "#d8e1dd");
+
+  const legendX = rect.x + rect.w + 18;
+  let legendY = rect.y + 4;
+  addText("Legenda", legendX, legendY + 8, 12, "#14211d");
+  legendY += 26;
+  activeDatasets.slice(0, 18).forEach((dataset) => {
+    addRect(legendX, legendY - 7, 16, 7, dataset.color);
+    const label = `${dataset.name} (${formatNumber(dataset.visibleFeatures.length)})`;
+    const chunks = label.length > 34 ? [label.slice(0, 34), label.slice(34, 68)] : [label];
+    chunks.forEach((line, index) => addText(line.trim(), legendX + 22, legendY + (index * 9), 8, "#14211d"));
+    legendY += Math.max(14, chunks.length * 10);
+  });
+
+  const note = "PDF gerado a partir da extensao visivel atual do mapa. Para alterar a area, volte ao painel, aproxime ou mova o mapa e gere novamente.";
+  [note.slice(0, 78), note.slice(78, 156), note.slice(156)].filter(Boolean)
+    .forEach((line, index) => addText(line.trim(), legendX, page.h - 44 + (index * 9), 7, "#65756f"));
+
+  downloadBlob(buildPdf(content, page), "mapa_area_atual_infovia05.pdf");
+}
+
 function buildMapPrintHtml() {
   const activeDatasets = state.datasets
     .filter((dataset) => dataset.visible && state.map.hasLayer(dataset.layer))
@@ -962,6 +1132,8 @@ $("toggleSidebar").addEventListener("click", toggleSidebar);
 $("measureDistance").addEventListener("click", () => setMeasureMode("distance"));
 $("measureArea").addEventListener("click", () => setMeasureMode("area"));
 $("clearMeasurements").addEventListener("click", clearMeasurements);
+$("topPrintMap").addEventListener("click", generateCurrentMapPdf);
+$("printMap").addEventListener("click", generateCurrentMapPdf);
 $("openPrintDialog").addEventListener("click", openPrintDialog);
 $("closePrintMode").addEventListener("click", closePrintMode);
 
